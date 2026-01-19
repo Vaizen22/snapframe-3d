@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls, Environment, ContactShadows, useTexture } from '@react-three/drei'
+import { OrbitControls, Environment, ContactShadows, useTexture, Bounds, useBounds } from '@react-three/drei'
 import { Phone } from './models/Phone'
 import { Laptop } from './models/Laptop'
 import { TShirt } from './models/TShirt'
@@ -19,20 +19,15 @@ function ModelWrapper({ type, image, color }) {
     }
 }
 
-function ResponsiveCamera({ type }) {
-   const { camera, viewport, size } = useThree()
-   
-   useEffect(() => {
-     // Adjust camera Z based on viewport width (responsiveness)
-     // Smaller screens need camera further away to see the whole object
-     const baseDistance = type === 'laptop' ? 14 : type === 'tshirt' ? 10 : 12
-     const factor = size.width < 768 ? 1.5 : 1
-     
-     camera.position.z = baseDistance * factor
-     camera.updateProjectionMatrix()
-   }, [size.width, camera, type])
-
-   return null
+function AutoFit({ children }) {
+  const bounds = useBounds()
+  useEffect(() => {
+     // Fit the object to the screen with some margin/padding
+     // clip: ensures we don't zoom out too far if not needed
+     // margin: 1.2 means 20% margin
+     bounds.refresh().clip().fit()
+  }, [children, bounds])
+  return <group>{children}</group>
 }
 
 function CaptureHandler({ captureRef }) {
@@ -56,13 +51,13 @@ function CaptureHandler({ captureRef }) {
 
 export function Scene({ modelType, image, color, captureRef }) {
   return (
-    <div className="w-full h-full">
+    <div style={{ width: '100%', height: '100%' }}>
       <Canvas 
          shadows
-         camera={{ position: [0, 0, 12], fov: 45 }} 
+         // Initial camera position will be overridden by Bounds but good to have reasonable default
+         camera={{ position: [0, 0, 10], fov: 50 }} 
          gl={{ preserveDrawingBuffer: true, antialias: true }}
       >
-        <ResponsiveCamera type={modelType} />
         <CaptureHandler captureRef={captureRef} />
         
         <ambientLight intensity={0.7} />
@@ -70,11 +65,13 @@ export function Scene({ modelType, image, color, captureRef }) {
         <Environment preset="studio" />
         
         <Suspense fallback={null}>
-            <ModelWrapper key={image || 'no-image'} type={modelType} image={image} color={color} />
+          <Bounds fit clip observe margin={1.2}>
+             <ModelWrapper key={image || 'no-image'} type={modelType} image={image} color={color} />
+          </Bounds>
         </Suspense>
 
-        <ContactShadows position={[0, -3.4, 0]} opacity={0.5} scale={20} blur={2.5} far={4.5} />
-        <OrbitControls minPolarAngle={0} maxPolarAngle={Math.PI / 1.6} enablePan={false} />
+        <ContactShadows position={[0, -2, 0]} opacity={0.5} scale={20} blur={2.5} far={4.5} />
+        <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 1.6} enablePan={true} />
       </Canvas>
     </div>
   )
